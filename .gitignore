@@ -1,0 +1,16 @@
+# 1. Môi trường ảo Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# 2. File bí mật (Chứa API Key Gemini & Mật khẩu Supabase)
+.env
+
+# 3. Thư mục chứa ảnh upload tạm
+uploads/
+backend/uploads/
+
+# 4. Thư viện Node (khi làm frontend)
+node_modules/
+.next/

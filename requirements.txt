@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+python-multipart
+pymupdf
+Pillow
+requests
+pgvector
+sqlalchemy
+psycopg2-binary
+google-genai
+dotenv
+app

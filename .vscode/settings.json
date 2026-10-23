@@ -1,0 +1,30 @@
+{
+  // Bật gợi ý code AI (Inline Suggestions / Ghost text)
+  "editor.inlineSuggest.enabled": true,
+  "editor.inlineSuggest.showToolbar": "always",
+
+  // Tự động kích hoạt gợi ý khi gõ ký tự
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.quickSuggestions": {
+    "other": "on",
+    "comments": "on",
+    "strings": "on"
+  },
+  "editor.tabCompletion": "on",
+  "editor.suggest.preview": true,
+  "editor.suggest.snippetsPreventQuickSuggestions": false,
+
+  // Bật gợi ý AI / GitHub Copilot cho mọi ngôn ngữ trong phiên làm việc này
+  "github.copilot.enable": {
+    "*": true,
+    "python": true,
+    "plaintext": true,
+    "markdown": true
+  },
+  "github.copilot.editor.enableAutoCompletions": true,
+
+  // Tối ưu gợi ý thông minh cho Python
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "basic"
+}
+
