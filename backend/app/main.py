@@ -2,10 +2,22 @@ import os
 import sys
 from pathlib import Path
 
-
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Tìm và nạp .env
+base_dirs = [
+    Path(__file__).resolve().parents[2],
+    Path(__file__).resolve().parents[1],
+]
+for d in base_dirs:
+    env_file = d / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+        break
+load_dotenv()
 
 from app.db.base import Base
 from app.db.session import DB_INIT_ERROR, engine
@@ -14,36 +26,46 @@ from app.api.slides import router as slides_router
 from app.api.exam import router as exam_router
 from app.api.auth import router as auth_router
 
-
 from app.models.course import Course
 from app.models.exam import ExamPaper, Question, Solution
 from app.models.slide import SlidePage
 from app.models.user import User
 
-from dotenv import load_dotenv
-load_dotenv()
-# Tự động kích hoạt pgvector và tạo các bảng trong Database nếu chưa có
+# Đồng bộ Database khi khởi động
 try:
     if engine is not None:
         from sqlalchemy import text
+
+        # 1. Kích hoạt extension vector nếu có thể
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                conn.commit()
+        except Exception:
+            pass
+
+        # 2. Tạo tất cả các bảng nếu chưa có
+        try:
+            Base.metadata.create_all(bind=engine)
+        except Exception as exc_create:
+            print(f"[WARN] Lỗi khi tạo bảng: {exc_create}")
+
+        # 3. Đồng bộ bổ sung các cột mới cho bảng courses nếu bảng đã tồn tại từ trước
+        columns_to_add = [
+            ("folder_name", "VARCHAR(100) DEFAULT 'Mặc định' NOT NULL"),
+            ("tags", "JSON DEFAULT '[]'::json"),
+            ("status", "VARCHAR(30) DEFAULT 'completed' NOT NULL"),
+            ("error_message", "VARCHAR(500)"),
+            ("file_type", "VARCHAR(20) DEFAULT 'pdf'"),
+        ]
         with engine.connect() as conn:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-            conn.commit()
-        Base.metadata.create_all(bind=engine)
-        with engine.connect() as conn:
-            conn.execute(text("""
-                DO $$
-                BEGIN
-                    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'courses') THEN
-                        ALTER TABLE courses ADD COLUMN IF NOT EXISTS folder_name VARCHAR(100) DEFAULT 'Mặc định' NOT NULL;
-                        ALTER TABLE courses ADD COLUMN IF NOT EXISTS tags JSON DEFAULT '[]'::json;
-                        ALTER TABLE courses ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'completed' NOT NULL;
-                        ALTER TABLE courses ADD COLUMN IF NOT EXISTS error_message VARCHAR(500);
-                        ALTER TABLE courses ADD COLUMN IF NOT EXISTS file_type VARCHAR(20) DEFAULT 'pdf';
-                    END IF;
-                END $$;
-            """))
-            conn.commit()
+            for col_name, col_def in columns_to_add:
+                try:
+                    conn.execute(text(f"ALTER TABLE courses ADD COLUMN IF NOT EXISTS {col_name} {col_def};"))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+
         print("[INFO] Đã kết nối Database thành công và đồng bộ cấu trúc bảng.")
     elif DB_INIT_ERROR is not None:
         print(f"[WARN] Không thể kết nối DB ngay lúc khởi động: {DB_INIT_ERROR}")
@@ -73,6 +95,7 @@ app.mount("/static/slides", StaticFiles(directory="uploads/slides"), name="slide
 app.include_router(slides_router, prefix="/api/v1")
 app.include_router(exam_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+
 @app.get("/")
 def root():
     return {"status": "PTIT Exam Solver API đang chạy ổn định!"}
@@ -81,6 +104,3 @@ def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
-
-
-
