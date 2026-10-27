@@ -1,42 +1,43 @@
 import os
-
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parents[3]
+load_dotenv(BASE_DIR / ".env")
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+engine = None
+SessionLocal = None
+DB_INIT_ERROR = None
 
-def _normalize_database_url(raw_url: str | None) -> str:
-    if not raw_url:
-        raise RuntimeError(
-            "DATABASE_URL chưa được cấu hình. Hãy thiết lập biến môi trường DATABASE_URL."
+if not DATABASE_URL:
+    DB_INIT_ERROR = RuntimeError(
+        "Thiếu biến môi trường DATABASE_URL. Không thể khởi tạo kết nối DB."
+    )
+else:
+    try:
+        engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10,
+            pool_recycle=300,
+            connect_args={"connect_timeout": 10}
         )
-
-    sanitized = raw_url.strip()
-    if "@" not in sanitized:
-        return sanitized
-
-    scheme, rest = sanitized.split("://", 1)
-    auth, host = rest.rsplit("@", 1)
-    if ":" in auth:
-        username, password = auth.split(":", 1)
-        password = password.strip("[] ")
-        auth = f"{username}:{password}"
-    if scheme == "postgresql":
-        scheme = "postgresql+psycopg2"
-    return f"{scheme}://{auth}@{host}"
-
-
-DATABASE_URL = _normalize_database_url(os.getenv("DATABASE_URL"))
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    except Exception as exc:
+        DB_INIT_ERROR = exc
 
 
 def get_db():
     """
     Dependency của FastAPI: Mỗi request mở 1 session, xử lý xong tự động đóng
     """
+    if SessionLocal is None:
+        raise RuntimeError(f"Database chưa sẵn sàng: {DB_INIT_ERROR}")
+
     db = SessionLocal()
     try:
         yield db

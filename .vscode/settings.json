@@ -1,6 +1,6 @@
 {
   // Bật gợi ý code AI (Inline Suggestions / Ghost text)
-  "editor.inlineSuggest.enabled": true,
+  "editor.inlineSuggest.enabled": false,
   "editor.inlineSuggest.showToolbar": "always",
 
   // Tự động kích hoạt gợi ý khi gõ ký tự
@@ -25,6 +25,7 @@
 
   // Tối ưu gợi ý thông minh cho Python
   "python.analysis.autoImportCompletions": true,
-  "python.analysis.typeCheckingMode": "basic"
+  "python.analysis.typeCheckingMode": "basic",
+  "python.terminal.useEnvFile": true
 }
 

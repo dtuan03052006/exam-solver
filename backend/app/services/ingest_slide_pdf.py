@@ -1,42 +1,44 @@
+import os
 from sqlalchemy.orm import Session
-
 from app.models.slide import SlidePage
-from app.services.slide_service import process_pdf_pages, get_embedding
+from app.services.slide_service import process_any_document, get_embeddings_batch
 from app.services.save_image_locally import save_slide_image
+from dotenv import load_dotenv
 
-def ingest_slide_pdf(db: Session, course_id: int, file_bytes: bytes) -> int:
-    """
-    Xử lý trọn gói file PDF và lưu toàn bộ các trang vào Database.
-    Trả về: Tổng số trang đã xử lý thành công.
-    """
-    # 1. Gọi hàm tách trang đã viết ở trên
-    pages_data = process_pdf_pages(file_bytes)
-    
-    # 2. Duyệt qua từng trang
-    for page in pages_data:
+load_dotenv()
+
+
+def ingest_slide_pdf(db: Session, course_id: int, file_bytes: bytes, filename: str = "document.pdf") -> int:
+    pages_data = process_any_document(file_bytes, filename)
+    if not pages_data:
+        return 0
+
+    texts_to_embed = [
+        p["text"].strip() if isinstance(p.get("text"), str) and p["text"].strip() else "Slide hình ảnh"
+        for p in pages_data
+    ]
+    vectors = get_embeddings_batch(texts_to_embed)
+
+    for i, page in enumerate(pages_data):
         page_num = page["page_number"]
-        raw_text = page["text"]
-        img_bytes = page["image_bytes"]
-        
-        # 3. Lưu ảnh và lấy đường dẫn
-        image_url = save_slide_image(course_id, page_num, img_bytes)
-        # 4. Thổi ngữ cảnh và tạo vector
-        # Nếu trang slide có chữ thì gọi get_embedding(), nếu slide rỗng thì embedding = None
-        embedding_vector = get_embedding(raw_text) if raw_text.strip() else None
+        raw_text = page.get("text") or ""
+        img_bytes = page.get("image_bytes")
 
-        # 5. Khởi tạo đối tượng SlidePage
+        image_url = None
+        if img_bytes:
+            image_url = save_slide_image(course_id, filename, page_num, img_bytes)
+
+        embedding_vector = vectors[i] if i < len(vectors) else None
+
         slide_record = SlidePage(
             course_id=course_id,
+            chapter=os.path.splitext(filename)[0],
             page_number=page_num,
             content=raw_text,
             image_url=image_url,
-            embedding=embedding_vector
+            embedding=embedding_vector,
         )
-        
-        # 6. Thêm vào database session
         db.add(slide_record)
 
-    # 7. Commit toàn bộ vào DB
     db.commit()
-    
     return len(pages_data)
